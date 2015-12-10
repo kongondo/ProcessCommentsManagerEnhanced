@@ -10,3 +10,6 @@ Mozilla Public License v2.0
 
 # Note
 This module is provided as a proof-of-concept and a temporary solution to a current problem. As such, the developers will not be offering any technical support to users.
+
+# Screen
+<img src='https://github.com/kongondo/ProcessCommentsManagerEnhanced/raw/master/process-comments-manager-enhanced.png' />
