@@ -21,7 +21,7 @@ class ProcessCommentsManagerEnhanced extends Process {
 	 */
 	public static function getModuleInfo() {
 		return array(
-			'title' => 'Comments (Enhanced)', 
+			'title' => 'Comments (Enhanced)',
 			'summary' => 'Manage comments in your site outside of the page editor (Enhanced).',
 			'version' => 1, 
 			'author' => 'Ryan Cramer, Francis Otieno (kongondo)', 
@@ -34,7 +34,7 @@ class ProcessCommentsManagerEnhanced extends Process {
 			'page' => array(
 				'name' => 'comments-enhanced',
 				'parent' => 'setup', 
-				'title' => 'Comments (Enhanced)', 
+				'title' => __('Comments (Enhanced)'),
 				),
 			'nav' => array(
 				array(
@@ -63,6 +63,7 @@ class ProcessCommentsManagerEnhanced extends Process {
 	 *
 	 */
 	protected $statuses = array();
+	protected $statusesOptions = array();
 
 	/**
 	 * Number of comments to show per page
@@ -82,12 +83,32 @@ class ProcessCommentsManagerEnhanced extends Process {
 	 */
 	public function init() {
 		parent::init();
+
+		$this->statusesOptions = array(
+			Comment::statusApproved => array(
+				'url' => $this->_x('approved', 'URL'),
+				'label' => $this->_x('Approved', 'Label')
+			),
+			Comment::statusPending => array(
+				'url' => $this->_x('pending', 'URL'),
+				'label' => $this->_x('Pending', 'Label')
+			),
+			Comment::statusSpam => array(
+				'url' => $this->_x('spam', 'URL'),
+				'label' => $this->_x('Spam', 'Label')
+			),
+			Comment::statusDelete => array(
+				'url' => $this->_x('all', 'URL'),
+				'label' => $this->_x('All', 'Label')
+			),
+		);
+
 		$this->statuses = array(
-			Comment::statusApproved => $this->_('approved'),
-			Comment::statusPending => $this->_('pending'),
-			Comment::statusSpam => $this->_('spam'),
-			Comment::statusDelete => $this->_('delete')
-			);
+			Comment::statusApproved => $this->statusesOptions[Comment::statusApproved]['url'],
+			Comment::statusPending => $this->statusesOptions[Comment::statusPending]['url'],
+			Comment::statusSpam => $this->statusesOptions[Comment::statusSpam]['url'],
+			Comment::statusDelete => $this->statusesOptions[Comment::statusDelete]['url']
+		);
 
 		/******* @@kongondo ******/
 		// cookie per user to save state of number of comments to display per page
@@ -117,15 +138,15 @@ class ProcessCommentsManagerEnhanced extends Process {
 
 		if($count == 1 || $go) {
 			$field = reset($fields);
-			$to = 'all';
+			$to = $this->statusesOptions[Comment::statusDelete]['url'];
 			if($go && in_array($go, $this->statuses)) $to = $go;
-			$this->wire('session')->redirect("./list/$field->name/$to/"); 
+			$this->wire('session')->redirect("./list/{$field->name}/{$to}/");
 			return;
 		}
 
 		$out = "<h2>" . $this->_('Please select a comments field') . "</h2><ul>";
 		foreach($fields as $field) {
-			$out .= "<li><a href='./list/{$field->name}/pending/'>{$field->name}</a></li>";
+			$out .= "<li><a href='./list/{$field->name}/{$this->statuses[Comment::statusPending]}/'>{$field->name}</a></li>";
 		}
 		$out .= "</ul>";
 
@@ -143,10 +164,11 @@ class ProcessCommentsManagerEnhanced extends Process {
 		$field = $this->fields->get($name); 
 		if(!$field || !$field->type instanceof FieldtypeComments) return $this->error($this->_('Unrecognized field')); 
 		$status = $this->input->urlSegment3;
-		if(empty($status) || ($status != 'all' && !in_array($status, $this->statuses))) {
-			$this->wire('session')->redirect($this->wire('page')->url . "list/$field->name/all/");
+		if(empty($status) || ($status != $this->statuses[Comment::statusDelete] && !in_array($status, $this->statuses))) {
+			$this->wire('session')->redirect($this->wire('page')->url . "list/{$field->name}/{$status}/");
 		}
-		$headline = ucfirst($status); 
+
+		$headline = $this->statusesOptions[array_search($status, $this->statuses)]['label'];
 		$this->breadcrumb('../', $field->getLabel()); 
 
 		/******* @@kongondo ******/
@@ -173,8 +195,7 @@ class ProcessCommentsManagerEnhanced extends Process {
 			'parent_id' => $this->_('Replies to'), 
 			);
 
-
-		if($status != 'all') {
+		if($status != $this->statuses[Comment::statusDelete]) {
 			$selector .= ", status=" . array_search($status, $this->statuses); 
 		}
 
@@ -290,7 +311,7 @@ class ProcessCommentsManagerEnhanced extends Process {
 			$numChildren = count($children);
 		}
 
-		foreach($this->statuses as $status => $label) {			
+		foreach($this->statuses as $status => $url) {
 			#$checked = $comment->status == $status ? " checked='checked'" : '';// @@kongondo => original PW
 			if($status == Comment::statusDelete && $numChildren) continue; 			
 
@@ -302,8 +323,8 @@ class ProcessCommentsManagerEnhanced extends Process {
 				"</label> &nbsp; ";// @@kongondo => original PW			
 			*/
 			if ($comment->status == $status) {
-				$type .= "<input type='checkbox' name='CommentStatus{$comment->id}' value='$status' data-original='$status' class='CommentAction'>";
-				$st = ucfirst($label);
+				$type .= "<input type='checkbox' name='CommentStatus{$comment->id}' value='{$status}' data-original='{$status}' class='CommentAction' />";
+				$st = $this->statusesOptions[$status]['label'];
 				$statusType .= "$st";
 			}
 			/******* END @@kongondo ******/
@@ -457,7 +478,7 @@ class ProcessCommentsManagerEnhanced extends Process {
 		/******* END @@kongondo ******/
 
 		foreach($comments as $comment) {
-			if($status && $status != 'all' && $this->statuses[$comment->status] != $status) continue; 
+			if($status && $status != $this->statusesOptions[Comment::statusDelete]['url'] && $this->statuses[$comment->status] != $status) continue;
 			$out .= $this->renderComment($comment); 
 			$cnt++;
 			if($cnt >= $this->limit) break;
@@ -471,13 +492,14 @@ class ProcessCommentsManagerEnhanced extends Process {
 
 		$wireTabs = $this->modules->get('JqueryWireTabs'); 
 		$tabs = array();
-		$class = $this->input->urlSegment3 == 'all' ? 'on' : '';
-		$tabs["tabStatusAll"] = "<a class='$class' href='../all/'>" . $this->_('All') . "</a>";
+		$class = $this->input->urlSegment3 == $this->statuses[Comment::statusDelete] ? 'on' : '';
 
-		foreach($this->statuses as $status => $label) {
-			if($status == Comment::statusDelete) continue; 
-			$class = $this->input->urlSegment3 === $label ? 'on' : '';
-			$tabs["tabStatus$status"] = "<a class='$class' href='../$label/'>" . ucfirst($label) . "</a>";
+		$tabs["tabStatusAll"] = "<a class='$class' href='../" . $this->statuses[Comment::statusDelete] . "/'>" . $this->statusesOptions[Comment::statusDelete]['label'] . "</a>";
+
+		foreach($this->statuses as $status => $url) {
+			if($status == Comment::statusDelete) continue;
+			$class = $this->input->urlSegment3 === $url ? 'on' : '';
+			$tabs["tabStatus$status"] = "<a class='{$class}' href='../{$url}/'>{$this->statusesOptions[$status]['label']}</a>";
 		}
 
 		$tabsOut = $wireTabs->renderTabList($tabs);
@@ -502,17 +524,16 @@ class ProcessCommentsManagerEnhanced extends Process {
 		/******* @@kongondo ******/
 		// bulk actions
 		$actions = array(
-							"1" => $this->_('Approved'),
-							"0" => $this->_('Pending'),
-							"-2" => $this->_('Spam'),
-							"999" => $this->_('Delete'),
-
+			Comment::statusApproved => $this->statusesOptions[Comment::statusApproved]['label'],
+			Comment::statusPending => $this->statusesOptions[Comment::statusPending]['label'],
+			Comment::statusSpam => $this->statusesOptions[Comment::statusSpam]['label'],
+			Comment::statusDelete => $this->statusesOptions[Comment::statusDelete]['label']
 		);
 		
 		$action = $this->modules->get('InputfieldSelect');
 		$action->attr('name+id', 'CommentsActionSelect');
 		$action->addOptions($actions);
-		$actionLabel = "<span id='CommentActionLabel'>Select an Action</span>";
+		$actionLabel = "<span id='CommentActionLabel'>" . $this->_('Select an Action') . "</span>";
 		
 		$selCommentchkboxAll = "<input type='checkbox' id='CommentActionAll'>";
 
